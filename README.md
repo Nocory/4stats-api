@@ -34,7 +34,7 @@ Returns an object of objects of live board statistics.
 
 ---
 ### /activeThreads/:board
->Example `https://api.4stats.io/activeThreads/a`
+>Example https://api.4stats.io/activeThreads/a
 
 `:board` must be a single valid board.
 
