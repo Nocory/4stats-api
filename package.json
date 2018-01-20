@@ -1,5 +1,5 @@
 {
-  "name": "4stats_distributor",
+  "name": "4stats_API",
   "version": "0.1.0",
   "description": "",
   "main": "index.js",
@@ -9,7 +9,6 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "axios": "^0.17.1",
     "compression": "^1.7.1",
     "cors": "^2.8.4",
     "express": "^4.16.2",
