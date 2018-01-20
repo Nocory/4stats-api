@@ -66,7 +66,7 @@ Hour entries are placed at each full hour, covering the preceeding and following
 
 ---
 ### CORS
-Only enabled for https://4stats.io and http://localhost currently.
+Only enabled for https://4stats.io and http://localhost:3000 currently.
 
 ---
 ### Rate limit
