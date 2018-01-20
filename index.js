@@ -21,9 +21,9 @@ const gathererIO = require('socket.io-client')(config.gathererURL,{
 	transports: ['websocket']
 })
 
-///////////////////////
+///////////////
 // API setup //
-///////////////////////
+///////////////
 const app = require('express')()
 const server = require('http').createServer(app)
 
@@ -77,9 +77,9 @@ gathererIO.on("initialData", initialData => {
 	})
 })
 
-////////////////////////////
+////////////////////
 // API connection //
-////////////////////////////
+////////////////////
 apiIO.on('connection', socket => {
 	let ip = socket.request.headers["x-real-ip"] || socket.request.headers["x-forwarded-for"] || socket.handshake.address
 	pino.info("%s Connected",ip.padEnd(15," "))
@@ -89,8 +89,6 @@ apiIO.on('connection', socket => {
 		pino.info("%s Disconnected %s",ip.padEnd(15," "),reason)
 	})
 })
-
-// NEW
 
 app.get('/all', function (req, res) {
 	res.send(boardStats)
@@ -119,62 +117,5 @@ app.get('/history/:term/:board', (req, res) => {
 		res.send(history[req.params.term][req.params.board])
 	}else{
 		res.status(403).send('Invalid Query')
-	}
-})
-
-// OLD
-
-app.get('/allBoardStats', function (req, res) {
-	res.send(boardStats)
-})
-
-app.get('/boardStats', function (req, res) {
-	const board = req.query.board
-	const boards = req.query.boards
-
-	if(!board && !boards) return res.send(boardStats)
-	
-	if(boards){
-		const boardsArr = boards.split(",")
-		if(boardsArr.length > 10) return res.status(403).send('Query must not contain more than 10 boards')
-		let result = {}
-		for(let board of boardsArr){
-			result[board] = boardStats[board]
-		}
-		return res.send(result)
-	}
-	
-	if(board && boardStats[board]){
-		return res.send(boardStats[board])
-	}
-	res.status(403).send('Invalid query string. Check the API.')
-})
-
-app.get('/activeThreads', function (req, res) {
-	res.send(activeThreads[req.query.board] || [])
-})
-
-app.get('/history', (req, res) => {
-	const board = req.query.board
-	const boards = req.query.boards
-	const term = req.query.term
-
-	if(boards){
-		const boardsArr = boards.split(",")
-		//const boardsArr = boards.split(",").slice(0,10)
-		if(boardsArr.length > 10) return res.status(403).send('Query must not contain more than 10 boards')
-		let result = {}
-		for(let board of boardsArr){
-			if(history[term] && history[term][board]){
-				result[board] = history[term][board]
-			}
-		}
-		res.send(result)
-	}else{
-		if(history[term]){
-			res.send(history[term][board] || [])
-		}else{
-			res.send([])
-		}
 	}
 })
