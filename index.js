@@ -28,7 +28,7 @@ const app = require('express')()
 const server = require('http').createServer(app)
 
 const corsOptions = {
-	origin: ["http://localhost:3000", "https://4stats.io", "https://4stats.moe"],
+	origin: ["http://localhost:3000", "https://4stats.io", "https://4stats.moe","null"],
 }
 
 app.set('trust proxy', 'loopback')
