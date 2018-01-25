@@ -28,7 +28,12 @@ const app = require('express')()
 const server = require('http').createServer(app)
 
 const corsOptions = {
-	origin: ["http://localhost:3000", "https://4stats.io", "https://4stats.moe","null"],
+	origin: [
+		"http://localhost:3000",
+		"https://4stats.io",
+		"https://4stats.moe",
+		"https://4stats-test.netlify.com",
+		"null"],
 }
 
 app.set('trust proxy', 'loopback')
@@ -37,7 +42,7 @@ app.use(require('helmet')())
 app.use(require('compression')()) // TODO: not needed? Maybe nginx handles it by itself
 
 const apiIO = require('socket.io')(server)
-apiIO.origins(["localhost:*","4stats.io:*","4stats.moe:*"])
+apiIO.origins(["localhost:*","4stats.io:*","4stats.moe:*","4stats-test.netlify.com:*"])
 
 app.use(function (req, res, next) {
 	pino.info("%s %s %s",req.ip.padEnd(15," "),req.method,req.originalUrl)
@@ -85,9 +90,14 @@ apiIO.on('connection', socket => {
 	pino.info("%s Connected",ip.padEnd(15," "))
 	socket.emit("enforcedClientVersion",config.enforcedClientVersion)
 	socket.emit("allBoardStats",boardStats)
+
 	socket.on("disconnect",reason => {
 		pino.info("%s Disconnected %s",ip.padEnd(15," "),reason)
 	})
+	
+	setTimeout(() => {
+		socket.emit("userCount",apiIO.engine.clientsCount)
+	},250)
 })
 
 app.get('/all', function (req, res) {
