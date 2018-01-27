@@ -72,14 +72,14 @@ gathererIO.on("initialData", initialData => {
 	activeThreads = initialData.activeThreads
 	history = initialData.history
 	apiIO.emit("allBoardStats",boardStats)
+})
 
-	gathererIO.on("update", update => {
-		pino.debug("gathererIO received update for /%s/ history -> %j",update.board,Object.keys(update.history))
-		boardStats[update.board] = update.newBoardStats
-		activeThreads[update.board] = update.newActiveThreads
-		for(let term in update.history) history[term][update.board] = update.history[term]
-		apiIO.emit("boardUpdate",update.board,update.newBoardStats)
-	})
+gathererIO.on("update", update => {
+	pino.debug("gathererIO received update for /%s/ history -> %j",update.board,Object.keys(update.history))
+	boardStats[update.board] = update.newBoardStats
+	activeThreads[update.board] = update.newActiveThreads
+	for(let term in update.history) history[term][update.board] = update.history[term]
+	apiIO.emit("boardUpdate",update.board,update.newBoardStats)
 })
 
 ////////////////////
