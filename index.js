@@ -51,10 +51,6 @@ app.use(function (req, res, next) {
 
 server.listen(4001)
 
-setInterval(() => {
-	apiIO.emit("userCount",apiIO.engine.clientsCount)
-},5316)
-
 /////////////////////////
 // Gatherer connection //
 /////////////////////////
@@ -85,19 +81,38 @@ gathererIO.on("update", update => {
 ////////////////////
 // API connection //
 ////////////////////
+let timerRunning = false
+const sendUserCount = () => {
+	if(timerRunning) return
+	timerRunning = true
+	pino.info("userCount timer START")
+	setTimeout(() => {
+		apiIO.emit("userCount",apiIO.engine.clientsCount)
+		timerRunning = false
+		pino.info("userCount timer END")
+	},3000)
+}
+/*
+setInterval(() => {
+	apiIO.emit("userCount",apiIO.engine.clientsCount)
+},5316)
+*/
 apiIO.on('connection', socket => {
+	sendUserCount()
 	let ip = socket.request.headers["x-real-ip"] || socket.request.headers["x-forwarded-for"] || socket.handshake.address
 	pino.info("%s Connected",ip.padEnd(15," "))
 	socket.emit("enforcedClientVersion",config.enforcedClientVersion)
 	socket.emit("allBoardStats",boardStats)
 
 	socket.on("disconnect",reason => {
+		sendUserCount()
 		pino.info("%s Disconnected %s",ip.padEnd(15," "),reason)
 	})
-	
+	/*
 	setTimeout(() => {
 		socket.emit("userCount",apiIO.engine.clientsCount)
 	},250)
+	*/
 })
 
 app.get('/all', function (req, res) {
