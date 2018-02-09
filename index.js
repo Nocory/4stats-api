@@ -89,7 +89,7 @@ const sendUserCount = () => {
 	setTimeout(() => {
 		apiIO.emit("userCount",apiIO.engine.clientsCount)
 		timerRunning = false
-		pino.debug("Sending userCount: %d",apiIO.engine.clientsCount)
+		pino.info("Sending userCount: %d",apiIO.engine.clientsCount)
 	},2000)
 }
 /*
@@ -100,13 +100,14 @@ setInterval(() => {
 apiIO.on('connection', socket => {
 	sendUserCount()
 	let ip = socket.request.headers["x-real-ip"] || socket.request.headers["x-forwarded-for"] || socket.handshake.address
-	pino.info("%s Connected",ip.padEnd(15," "))
+	pino.info("%s Connected %s",ip.padEnd(15," "),socket.handshake.query.connectionType)
 	socket.emit("enforcedClientVersion",config.enforcedClientVersion)
 	socket.emit("allBoardStats",boardStats)
 
 	socket.on("disconnect",reason => {
 		sendUserCount()
-		pino.info("%s Disconnected %s",ip.padEnd(15," "),reason)
+		reason = reason == "client namespace disconnect" ? "tab hidden" : reason
+		pino.info("%s Disc. %s",ip.padEnd(15," "),reason)
 	})
 	/*
 	setTimeout(() => {
