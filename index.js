@@ -115,7 +115,15 @@ apiIO.on('connection', socket => {
 	*/
 })
 
+app.get('/', function (req, res) {
+	res.redirect('https://github.com/Nocory/4stats-api#4stats-api')
+})
+
 app.get('/all', function (req, res) {
+	res.send(boardStats)
+})
+
+app.get('/allBoardStats', function (req, res) {
 	res.send(boardStats)
 })
 

@@ -11,8 +11,8 @@ It also offers endpoints for board-stats, active-threads and board-history reque
 ### Base-URL: https://api.4stats.io
 
 ---
-### /all
->Example: https://api.4stats.io/all
+### /allBoardStats
+>Example: https://api.4stats.io/allBoardStats
 
 Returns an object with the live statistics of all boards.
 
@@ -28,7 +28,7 @@ Returns an object of live board statistics.
 ### /boards/:boards
 >Example: https://api.4stats.io/boards/g,x,pol,trv
 
-`:boards` should be a comma separated list.
+`:boards` must be a comma separated list.
 
 Returns an object of objects of live board statistics.
 
@@ -67,9 +67,9 @@ Hour entries are placed at each full hour, covering the preceeding and following
 ---
 ### CORS
 Enabled for
-* http://localhost:3000
 * https://4stats.io
 * https://4stats.moe
+* http://localhost:3000
 * null (local files)
 
 ---
