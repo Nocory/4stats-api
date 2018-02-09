@@ -85,12 +85,12 @@ let timerRunning = false
 const sendUserCount = () => {
 	if(timerRunning) return
 	timerRunning = true
-	pino.info("userCount timer START")
+	//pino.info("userCount timer START")
 	setTimeout(() => {
 		apiIO.emit("userCount",apiIO.engine.clientsCount)
 		timerRunning = false
-		pino.info("userCount timer END")
-	},3000)
+		pino.debug("Sending userCount: %d",apiIO.engine.clientsCount)
+	},2000)
 }
 /*
 setInterval(() => {
