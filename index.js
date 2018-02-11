@@ -51,9 +51,55 @@ app.use(function (req, res, next) {
 
 server.listen(4001)
 
+let combinedHistoryObj = {
+	day: {},
+	hour: {}
+}
+
+let combinedHistory = {
+	day: [],
+	hour: []
+}
+const calcCombinedHistory = (term,entry) => {
+	if(!combinedHistoryObj[term][entry[0]]) combinedHistoryObj[term][entry[0]] = {
+		postsInTerm: 0,
+		postsPerMinute: 0,
+		boardsConsidered: 0
+	}
+
+	const combinedEntry = combinedHistoryObj[term][entry[0]]
+
+	combinedEntry.postsInTerm += entry[2]
+	combinedEntry.postsPerMinute += entry[3]
+	combinedEntry.boardsConsidered += 1
+
+	if(combinedEntry.boardsConsidered == 72){
+		combinedHistory[term].push([entry[0],entry[1],combinedEntry.postsInTerm,combinedEntry.postsPerMinute])
+	}
+}
+
 /////////////////////////
 // Gatherer connection //
 /////////////////////////
+const adjustDataOfNoDubBoards = (board,data)=>{
+	if(["v","vg","vr"].includes(board)){
+		data.postsPerMinute *= 0.901
+		data.avgPostsPerDay *= 0.901
+		data.topPPM *= 0.901
+	}
+	return data
+}
+
+const adjustHistoryOfNoDubBoards = (board,data)=>{
+	if(["v","vg","vr"].includes(board)){
+		for(let entry of data){
+			entry[2] *= 0.901
+			entry[3] *= 0.901
+		}
+	}
+	return data
+}
+
 gathererIO.on("connect", () => {
 	pino.info("✓✓✓ gathererIO connected to %s",config.gathererURL)
 })
@@ -64,17 +110,47 @@ gathererIO.on("disconnect", reason => {
 
 gathererIO.on("initialData", initialData => {
 	pino.info("✓✓✓ gathererIO received initialData")
+
+	for(let board in initialData.liveBoardStats){
+		adjustDataOfNoDubBoards(board,initialData.liveBoardStats[board])
+	}
+
+	for(let term of ["day","hour"]){
+		for(let board in initialData.history[term]){
+			adjustHistoryOfNoDubBoards(board,initialData.history[term][board])
+		}
+	}
+	
 	boardStats = initialData.liveBoardStats
 	activeThreads = initialData.activeThreads
 	history = initialData.history
+
+	/*
+	for(let term of ["day","hour"]){
+		for(let board in history[term]){
+			for(let entry of history[term][board]){
+				calcCombinedHistory(term,entry)
+			}
+			pino.info("fin comb. %s %s",term,board)
+		}
+	}
+	*/
+	
 	apiIO.emit("allBoardStats",boardStats)
 })
 
 gathererIO.on("update", update => {
 	pino.debug("gathererIO received update for /%s/ history -> %j",update.board,Object.keys(update.history))
+
+	adjustDataOfNoDubBoards(update.board,update.newBoardStats)
+
 	boardStats[update.board] = update.newBoardStats
 	activeThreads[update.board] = update.newActiveThreads
-	for(let term in update.history) history[term][update.board] = update.history[term]
+	for(let term in update.history){
+		adjustHistoryOfNoDubBoards(update.board,update.history[term])
+		history[term][update.board] = update.history[term]
+		//calcCombinedHistory(term,update.history[term])
+	}
 	apiIO.emit("boardUpdate",update.board,update.newBoardStats)
 })
 
@@ -152,4 +228,8 @@ app.get('/history/:term/:board', (req, res) => {
 	}else{
 		res.status(403).send('Invalid Query')
 	}
+})
+
+app.get('/combinedHistory/:term', (req, res) => {
+	res.send(combinedHistory[req.params.term])
 })
