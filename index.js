@@ -210,7 +210,7 @@ app.get('/board/:board', function (req, res) {
 
 app.get('/boards/:boards', function (req, res) {
 	const boardsArr = req.params.boards.split(",")
-	if(boardsArr.length > 10) return res.status(403).send('Query must not contain more than 10 boards')
+	if(boardsArr.length > 36) return res.status(403).send('Query must not contain more than 36 boards')
 	let result = {}
 	for(let board of boardsArr){
 		result[board] = boardStats[board]
