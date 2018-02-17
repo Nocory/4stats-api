@@ -157,22 +157,23 @@ gathererIO.on("update", update => {
 ////////////////////
 // API connection //
 ////////////////////
+let nextUserCountEmitTime = 0
 let timerRunning = false
 const sendUserCount = () => {
 	if(timerRunning) return
 	timerRunning = true
-	//pino.info("userCount timer START")
+	
+	const now = Date.now()
+	const delay = Math.max(0,nextUserCountEmitTime - now)
+	nextUserCountEmitTime = now + delay + 2000
+
 	setTimeout(() => {
-		apiIO.emit("userCount",apiIO.engine.clientsCount)
 		timerRunning = false
+		apiIO.emit("userCount",apiIO.engine.clientsCount)
 		pino.info("Sending userCount: %d",apiIO.engine.clientsCount)
-	},2000)
+	},delay)
 }
-/*
-setInterval(() => {
-	apiIO.emit("userCount",apiIO.engine.clientsCount)
-},5316)
-*/
+
 apiIO.on('connection', socket => {
 	sendUserCount()
 	let ip = socket.request.headers["x-real-ip"] || socket.request.headers["x-forwarded-for"] || socket.handshake.address
@@ -185,19 +186,10 @@ apiIO.on('connection', socket => {
 		reason = reason == "client namespace disconnect" ? "tab hidden" : reason
 		pino.info("%s Disc. %s",ip.padEnd(15," "),reason)
 	})
-	/*
-	setTimeout(() => {
-		socket.emit("userCount",apiIO.engine.clientsCount)
-	},250)
-	*/
 })
 
 app.get('/', function (req, res) {
 	res.redirect('https://github.com/Nocory/4stats-api#4stats-api')
-})
-
-app.get('/all', function (req, res) {
-	res.send(boardStats)
 })
 
 app.get('/allBoardStats', function (req, res) {
