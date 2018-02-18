@@ -159,12 +159,13 @@ gathererIO.on("update", update => {
 ////////////////////
 let nextUserCountEmitTime = 0
 let timerRunning = false
-const sendUserCount = () => {
+
+const sendUserCount = (minDelay = 0) => {
 	if(timerRunning) return
 	timerRunning = true
 	
 	const now = Date.now()
-	const delay = Math.max(0,nextUserCountEmitTime - now)
+	const delay = Math.max(minDelay,nextUserCountEmitTime - now)
 	nextUserCountEmitTime = now + delay + 2000
 
 	setTimeout(() => {
@@ -175,16 +176,16 @@ const sendUserCount = () => {
 }
 
 apiIO.on('connection', socket => {
-	sendUserCount()
 	let ip = socket.request.headers["x-real-ip"] || socket.request.headers["x-forwarded-for"] || socket.handshake.address
 	pino.info("%s Connected %s",ip.padEnd(15," "),socket.handshake.query.connectionType)
 	socket.emit("enforcedClientVersion",config.enforcedClientVersion)
 	socket.emit("allBoardStats",boardStats)
+	sendUserCount()
 
 	socket.on("disconnect",reason => {
-		sendUserCount()
 		reason = reason == "client namespace disconnect" ? "tab hidden" : reason
 		pino.info("%s Disc. %s",ip.padEnd(15," "),reason)
+		sendUserCount(2000) // socket.io disconnect events dont update the socket count right away
 	})
 })
 
