@@ -33,6 +33,8 @@ const corsOptions = {
 		"https://4stats.io",
 		"https://4stats.moe",
 		"https://dev.4stats.io",
+		"https://noscript.4stats.io",
+		"https://ssrtest.4stats.io",
 		"null"],
 }
 
@@ -42,7 +44,14 @@ app.use(require('helmet')())
 app.use(require('compression')()) // TODO: not needed? Maybe nginx handles it by itself
 
 const apiIO = require('socket.io')(server)
-apiIO.origins(["localhost:*","4stats.io:*","4stats.moe:*","dev.4stats.io:*"])
+apiIO.origins([
+	"localhost:*",
+	"4stats.io:*",
+	"4stats.moe:*",
+	"dev.4stats.io:*",
+	"noscript.4stats.io:*",
+	"ssrtest.4stats.io:*"
+])
 
 app.use(function (req, res, next) {
 	pino.info("%s %s %s",req.ip.padEnd(15," "),req.method,req.originalUrl)
