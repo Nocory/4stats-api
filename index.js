@@ -33,8 +33,7 @@ const corsOptions = {
 		"https://4stats.io",
 		"https://4stats.moe",
 		"https://dev.4stats.io",
-		"https://noscript.4stats.io",
-		"https://ssrtest.4stats.io",
+		"https://nuxt.4stats.io",
 		"null"],
 }
 
@@ -49,8 +48,7 @@ apiIO.origins([
 	"4stats.io:*",
 	"4stats.moe:*",
 	"dev.4stats.io:*",
-	"noscript.4stats.io:*",
-	"ssrtest.4stats.io:*"
+	"nuxt.4stats.io:*"
 ])
 
 app.use(function (req, res, next) {
@@ -188,8 +186,10 @@ apiIO.on('connection', socket => {
 	let ip = socket.request.headers["x-real-ip"] || socket.request.headers["x-forwarded-for"] || socket.handshake.address
 	pino.info("%s Connected %s",ip.padEnd(15," "),socket.handshake.query.connectionType)
 	socket.emit("enforcedClientVersion",config.enforcedClientVersion)
-	socket.emit("allBoardStats",boardStats)
-	sendUserCount()
+	if(!socket.handshake.query.dontSendBoards){
+		socket.emit("allBoardStats",boardStats)
+	}
+	sendUserCount(500)
 
 	socket.on("disconnect",reason => {
 		reason = reason == "client namespace disconnect" ? "tab hidden" : reason
@@ -234,4 +234,53 @@ app.get('/history/:term/:board', (req, res) => {
 
 app.get('/combinedHistory/:term', (req, res) => {
 	res.send(combinedHistory[req.params.term])
+})
+
+///////////////////////
+// snapshot analysis //
+///////////////////////
+
+const snapperAddr = "http://10.9.96.5:8080"
+
+const snapperIO = require('socket.io-client')(snapperAddr,{
+	transports: ['websocket']
+})
+
+let snapshotMetaAnalysis = {}
+let snapshotTextAnalysis = {}
+
+snapperIO.on("connect", () => {
+	pino.info("✓✓✓ snapperIO connected to %s",snapperAddr)
+})
+
+snapperIO.on("disconnect", reason => {
+	pino.error("snapperIO disconnected from %s - %s",snapperAddr,reason)
+})
+
+snapperIO.on("initialData", initialData => {
+	pino.info("✓✓✓ snapperIO received initialData")
+	snapshotMetaAnalysis = initialData.snapshotMetaAnalysis
+	snapshotTextAnalysis = initialData.snapshotTextAnalysis
+})
+
+snapperIO.on("update", update => {
+	pino.debug("snapperIO received update")
+	snapshotMetaAnalysis[update.board] = update.snapshotMetaAnalysis
+	snapshotTextAnalysis[update.board] = update.snapshotTextAnalysis
+})
+
+app.get('/snapshotMetaAnalysis', (req, res) => {
+	res.send(snapshotMetaAnalysis)
+})
+
+app.get('/snapshotMetaAnalysis/:board', (req, res) => {
+	res.send(snapshotMetaAnalysis[req.params.board])
+})
+
+app.get('/snapshotTextAnalysis', (req, res) => {
+	res.send(snapshotTextAnalysis)
+})
+
+app.get('/snapshotTextAnalysis/:board', (req, res) => {
+	res.send(snapshotTextAnalysis[req.params.board])
 })
