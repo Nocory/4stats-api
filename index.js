@@ -246,8 +246,8 @@ const snapperIO = require('socket.io-client')(snapperAddr,{
 	transports: ['websocket']
 })
 
-let snapshotMetaAnalysis = {}
-let snapshotTextAnalysis = {}
+let textAnalysis = {}
+let metaAnalysis = {}
 
 snapperIO.on("connect", () => {
 	pino.info("✓✓✓ snapperIO connected to %s",snapperAddr)
@@ -259,28 +259,56 @@ snapperIO.on("disconnect", reason => {
 
 snapperIO.on("initialData", initialData => {
 	pino.info("✓✓✓ snapperIO received initialData")
-	snapshotMetaAnalysis = initialData.snapshotMetaAnalysis
-	snapshotTextAnalysis = initialData.snapshotTextAnalysis
+	for(let board of Object.keys(initialData).sort()){
+		textAnalysis[board] = initialData[board].textAnalysis
+		metaAnalysis[board] = initialData[board].metaAnalysis
+	}
 })
 
 snapperIO.on("update", update => {
 	pino.debug("snapperIO received update")
-	snapshotMetaAnalysis[update.board] = update.snapshotMetaAnalysis
-	snapshotTextAnalysis[update.board] = update.snapshotTextAnalysis
+	textAnalysis[update.board] = update.textAnalysis
+	metaAnalysis[update.board] = update.metaAnalysis
 })
 
-app.get('/snapshotMetaAnalysis', (req, res) => {
-	res.send(snapshotMetaAnalysis)
+app.get('/textAnalysis', (req, res) => {
+	res.send(textAnalysis)
 })
 
-app.get('/snapshotMetaAnalysis/:board', (req, res) => {
-	res.send(snapshotMetaAnalysis[req.params.board])
+app.get('/textAnalysis/:board', (req, res) => {
+	res.send(textAnalysis[req.params.board])
 })
 
-app.get('/snapshotTextAnalysis', (req, res) => {
-	res.send(snapshotTextAnalysis)
+app.get('/metaAnalysis', (req, res) => {
+	res.send(metaAnalysis)
 })
 
-app.get('/snapshotTextAnalysis/:board', (req, res) => {
-	res.send(snapshotTextAnalysis[req.params.board])
+app.get('/metaAnalysis/:board', (req, res) => {
+	res.send(metaAnalysis[req.params.board])
 })
+
+let csvStrings = {}
+
+snapperIO.on("csvStrings", strings => {
+	pino.debug("snapperIO received csvStrings")
+	csvStrings = strings
+})
+
+app.get('/csv/:name', function (req, res) {
+	res.set('Content-Type', 'text/csv')
+	res.set('Content-Disposition', `attachment; filename=${req.params.name}.csv`)
+	if(!csvStrings[req.params.name]){
+		res.sendStatus(404)
+	}else{
+		res.send(csvStrings[req.params.name])
+	}
+})
+/*
+app.get('/wordAnalysis/:word', async (req, res) => {
+	try{
+		res.send(await axios.get(snapperAddr + `/wordAnalysis/${req.params.name}`).data)
+	}catch(err){
+		pino.error(err.message)
+	}
+})
+*/
