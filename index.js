@@ -240,7 +240,8 @@ app.get('/combinedHistory/:term', (req, res) => {
 // snapshot analysis //
 ///////////////////////
 
-const snapperAddr = "http://10.9.96.5:8080"
+//const snapperAddr = "http://10.9.96.5:8080"
+const snapperAddr = "http://163.172.158.243:8080"
 
 const snapperIO = require('socket.io-client')(snapperAddr,{
 	transports: ['websocket']
@@ -260,25 +261,43 @@ snapperIO.on("disconnect", reason => {
 snapperIO.on("initialData", initialData => {
 	pino.info("✓✓✓ snapperIO received initialData")
 	for(let board of Object.keys(initialData).sort()){
-		textAnalysis[board] = initialData[board].textAnalysis
+		//textAnalysis[board] = initialData[board].textAnalysis
 		metaAnalysis[board] = initialData[board].metaAnalysis
 	}
 })
 
 snapperIO.on("update", update => {
 	pino.debug("snapperIO received update")
-	textAnalysis[update.board] = update.textAnalysis
+	//textAnalysis[update.board] = update.textAnalysis
 	metaAnalysis[update.board] = update.metaAnalysis
 })
 
-app.get('/textAnalysis', (req, res) => {
-	res.send(textAnalysis)
+const axios = require('axios')
+app.get('/textAnalysis', async (req, res) => {
+	const word = req.query.word
+	if(!word || word.length < 3 || word.length > 20){
+		res.status(400).send("word is too short or too long (3-20 characters)")
+		return
+	}
+	try{
+		const result = await axios.get(`${snapperAddr}/analyzeText?word=${word}`)
+		res.send(result.data)
+	}catch(err){
+		res.status(500).send("sorry the server fucked up")
+		console.error(err.message)
+	}
+	return
 })
-
-app.get('/textAnalysis/:board', (req, res) => {
-	res.send(textAnalysis[req.params.board])
+/*
+app.get('/textAnalysisLastDay/:word', async (req, res) => {
+	try{
+		res.send(textAnalysis[req.params.word])
+	}catch(err){
+		conole.error(err.message)
+	}
+	return
 })
-
+*/
 app.get('/metaAnalysis', (req, res) => {
 	res.send(metaAnalysis)
 })
