@@ -1,5 +1,5 @@
 const config = {
-	enforcedClientVersion: 26,
+	enforcedClientVersion: 29,
 	debugLevelDevelopment: "trace", // ["fatal","error","warn","info","debug","trace"]
 	debugLevelProduction: "info",	
 	popularThreads: 8,

@@ -2,6 +2,10 @@ const config = require('./config')
 const pino = require('./pino')
 //const axios = require('axios')
 
+const low = require('lowdb')
+const FileSync = require('lowdb/adapters/FileSync')
+const supDB = low(new FileSync('supplementalDays.json'))
+
 pino.info("process.env.NODE_ENV is %s",process.env.NODE_ENV)
 pino.info("process.env.DEBUG is %s",process.env.DEBUG)
 pino.info("process.env.PINO_LEVEL is %s",process.env.PINO_LEVEL)
@@ -11,7 +15,8 @@ let boardStats = {}
 let activeThreads = {}
 let history = {
 	hour : {},
-	day : {}
+	day : {},
+	cycle: {}
 }
 
 ////////////////////
@@ -100,11 +105,33 @@ const adjustDataOfNoDubBoards = (board,data)=>{
 const adjustHistoryOfNoDubBoards = (board,data)=>{
 	if(["v","vg","vr"].includes(board)){
 		for(let entry of data){
+			if(!data[2]) continue
 			entry[2] *= 0.901
 			entry[3] *= 0.901
 		}
 	}
 	return data
+}
+
+const fillGaps = (term,data) => {
+	if(!data.length) return []
+	if(term == "cycle") return data
+
+	const interval = term == "hour" ? 1000 * 60 * 60 : 1000 * 60 * 60 * 24
+	const newArr = []
+
+	let expectedTime = data[0][0]
+
+	for(let entry of data){
+		while(expectedTime < entry[0]){
+			//pino.info(`Added null gap to ${board}`)
+			newArr.push([expectedTime,interval,NaN,NaN])
+			expectedTime += interval
+		}
+		newArr.push(entry)
+		expectedTime = entry[0] + interval
+	}
+	return newArr
 }
 
 gathererIO.on("connect", () => {
@@ -122,8 +149,16 @@ gathererIO.on("initialData", initialData => {
 		adjustDataOfNoDubBoards(board,initialData.liveBoardStats[board])
 	}
 
-	for(let term of ["day","hour"]){
+	for(let term of ["day","hour","cycle"]){
 		for(let board in initialData.history[term]){
+			initialData.history[term][board] = fillGaps(term,initialData.history[term][board])
+
+			console.log("supDB has",board,supDB.has(board).value())
+			if(term == "day" && supDB.has(board).value()){
+				console.log(board,"length",supDB.get(board).value().length)
+				initialData.history[term][board] = [...supDB.get(board).value(),...initialData.history[term][board]]
+			}
+
 			adjustHistoryOfNoDubBoards(board,initialData.history[term][board])
 		}
 	}
@@ -152,14 +187,31 @@ gathererIO.on("update", update => {
 	adjustDataOfNoDubBoards(update.board,update.newBoardStats)
 
 	boardStats[update.board] = update.newBoardStats
-	activeThreads[update.board] = update.newActiveThreads
+	if (update.newActiveThreads) activeThreads[update.board] = update.newActiveThreads
 	for(let term in update.history){
+		update.history[term] = fillGaps(term,update.history[term])
+
+		console.log("supDB has",update.board,supDB.has(update.board).value())
+		if(term == "day" && supDB.has(update.board).value()){
+			console.log(update.board,"length",supDB.get(update.board).value().length)
+			update.history[term] = [...supDB.get(update.board).value(),...update.history[term]]
+		}
+
 		adjustHistoryOfNoDubBoards(update.board,update.history[term])
+
 		history[term][update.board] = update.history[term]
 		//calcCombinedHistory(term,update.history[term])
 	}
 	apiIO.emit("boardUpdate",update.board,update.newBoardStats)
 })
+
+gathererIO.on("gathererError", err => {
+	apiIO.emit("serverError","Gatherer: " + err)
+})
+
+gathererIO.on('error', error => {
+  apiIO.emit("serverError","API: " + error.message || error.data || error)
+});
 
 ////////////////////
 // API connection //
@@ -234,6 +286,19 @@ app.get('/history/:term/:board', (req, res) => {
 
 app.get('/combinedHistory/:term', (req, res) => {
 	res.send(combinedHistory[req.params.term])
+})
+
+//////////////
+// Info Box //
+//////////////
+
+const crypto = require('crypto');
+const validPW = "ddfbc49d225314681f1f2e872110960759df78d0646309918352563ca26d40fc"
+let infoString = ""
+
+apiIO.on("updateInfoText",(text,pw) => {
+	const digest = crypto.createHash('sha256').update(pw).digest('hex');
+	infoString = text
 })
 
 ///////////////////////

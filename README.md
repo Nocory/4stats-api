@@ -44,11 +44,11 @@ Returns an array of objects, containing the currently most active threads, sorte
 ### /history/:term/:board
 >Example: https://api.4stats.io/history/day/biz
 
-`:term` must be *day* or *hour*.
+`:term` must be *day*, *hour* or *cycle*.
 
 `:board` must be a single valid board.
 
-Returns an array of arrays in the format:
+*day* and *hour* return an array of arrays in the format:
 ```
 [unix-timestamp,
 milliseconds of duration covered,
@@ -56,7 +56,17 @@ posts during duration,
 posts/min during duration]
 ```
 
-`day` returns the complete history. `hour` returns the last 4 weeks.
+*cycle* returns an array of arrays in the format:
+```
+[unix-timestamp,
+milliseconds of duration covered,
+posts during duration,
+threads during duration,
+newest post number,
+newest thread number]
+```
+
+`day` returns the complete history. `hour` returns the last 4 weeks. `cycle` returns the last 3 days.
 
 Day entries always start at 9:00AM UTC and cover the following 24 hours.
 
@@ -64,11 +74,12 @@ Hour entries are placed at each full hour, covering the preceeding and following
 
 (An entry for 08:00 would cover the time from 07:30 - 08:30)
 
+Cycle entries are ~5 minutes apart.
+
 ---
 ### CORS
 Enabled for
 * https://4stats.io
-* https://4stats.moe
 * http://localhost:3000
 * null (local files)
 

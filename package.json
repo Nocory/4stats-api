@@ -9,10 +9,12 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "axios": "^0.18.0",
     "compression": "^1.7.1",
     "cors": "^2.8.4",
     "express": "^4.16.2",
     "helmet": "^3.9.0",
+    "lowdb": "^1.0.0",
     "pino": "^4.10.3",
     "socket.io": "^2.0.3"
   }
