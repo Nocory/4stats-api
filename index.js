@@ -1,6 +1,5 @@
 const config = require('./config')
 const pino = require('./pino')
-//const axios = require('axios')
 
 const low = require('lowdb')
 const FileSync = require('lowdb/adapters/FileSync')
@@ -18,23 +17,18 @@ let history = {
 	day : {},
 	cycle: {}
 }
+let postAnalysisResult = {}
 
-////////////////////
-// Gatherer setup //
-////////////////////
-const gathererIO = require('socket.io-client')(config.gathererURL,{
-	transports: ['websocket']
-})
-
-///////////////
-// API setup //
-///////////////
+///////////////////
+// Express setup //
+///////////////////
 const app = require('express')()
 const server = require('http').createServer(app)
 
 const corsOptions = {
 	origin: [
 		"http://localhost:3000",
+		"http://localhost:1234",
 		"https://4stats.io",
 		"https://4stats.moe",
 		"https://dev.4stats.io",
@@ -63,15 +57,14 @@ app.use(function (req, res, next) {
 
 server.listen(4001)
 
+////////////////////////////
+// Combined Board History //
+////////////////////////////
 let combinedHistoryObj = {
 	day: {},
 	hour: {}
 }
 
-let combinedHistory = {
-	day: [],
-	hour: []
-}
 const calcCombinedHistory = (term,entry) => {
 	if(!combinedHistoryObj[term][entry[0]]) combinedHistoryObj[term][entry[0]] = {
 		postsInTerm: 0,
@@ -86,13 +79,16 @@ const calcCombinedHistory = (term,entry) => {
 	combinedEntry.boardsConsidered += 1
 
 	if(combinedEntry.boardsConsidered == 72){
-		combinedHistory[term].push([entry[0],entry[1],combinedEntry.postsInTerm,combinedEntry.postsPerMinute])
+		history[term].all.push([entry[0],entry[1],combinedEntry.postsInTerm,combinedEntry.postsPerMinute])
+		if(term == "hour"){
+			history[term].all.slice(-24 * 7 * 4) //TODO: could do .shift() instead and remove up to certain time
+		}
 	}
 }
 
-/////////////////////////
-// Gatherer connection //
-/////////////////////////
+//////////////////////////
+// Processing Functions //
+//////////////////////////
 const adjustDataOfNoDubBoards = (board,data)=>{
 	if(["v","vg","vr"].includes(board)){
 		data.postsPerMinute *= 0.901
@@ -134,6 +130,13 @@ const fillGaps = (term,data) => {
 	return newArr
 }
 
+/////////////////////////
+// Gatherer connection //
+/////////////////////////
+const gathererIO = require('socket.io-client')(config.gathererURL,{
+	transports: ['websocket']
+})
+
 gathererIO.on("connect", () => {
 	pino.info("✓✓✓ gathererIO connected to %s",config.gathererURL)
 })
@@ -147,15 +150,19 @@ gathererIO.on("initialData", initialData => {
 
 	for(let board in initialData.liveBoardStats){
 		adjustDataOfNoDubBoards(board,initialData.liveBoardStats[board])
+		
+		if (initialData.activeThreads[board].length){
+			initialData.liveBoardStats[board].hasSticky = initialData.activeThreads[board][0].sticky ? true : false //TODO: move this to the gatherer !!
+		}
 	}
 
 	for(let term of ["day","hour","cycle"]){
 		for(let board in initialData.history[term]){
 			initialData.history[term][board] = fillGaps(term,initialData.history[term][board])
 
-			console.log("supDB has",board,supDB.has(board).value())
+			//console.log("supDB has",board,supDB.has(board).value())
 			if(term == "day" && supDB.has(board).value()){
-				console.log(board,"length",supDB.get(board).value().length)
+				console.log(board,"sup length",supDB.get(board).value().length)
 				initialData.history[term][board] = [...supDB.get(board).value(),...initialData.history[term][board]]
 			}
 
@@ -166,17 +173,21 @@ gathererIO.on("initialData", initialData => {
 	boardStats = initialData.liveBoardStats
 	activeThreads = initialData.activeThreads
 	history = initialData.history
+	history.day.all = []
+	history.hour.all = []
+	history.cycle.all = []
 
-	/*
+	const now = Date.now()
+
 	for(let term of ["day","hour"]){
 		for(let board in history[term]){
 			for(let entry of history[term][board]){
+				if(entry[0] < now - 1000 * 60 * 60 * 24 * 365 * 1.5) continue
 				calcCombinedHistory(term,entry)
 			}
 			pino.info("fin comb. %s %s",term,board)
 		}
 	}
-	*/
 	
 	apiIO.emit("allBoardStats",boardStats)
 })
@@ -184,23 +195,29 @@ gathererIO.on("initialData", initialData => {
 gathererIO.on("update", update => {
 	pino.debug("gathererIO received update for /%s/ history -> %j",update.board,Object.keys(update.history))
 
-	adjustDataOfNoDubBoards(update.board,update.newBoardStats)
+	if (update.newActiveThreads.length){
+		update.newBoardStats.hasSticky = update.newActiveThreads[0].sticky ? true : false //TODO: move this to the gatherer !!
+		activeThreads[update.board] = update.newActiveThreads
+	}
 
+	adjustDataOfNoDubBoards(update.board,update.newBoardStats)
 	boardStats[update.board] = update.newBoardStats
-	if (update.newActiveThreads) activeThreads[update.board] = update.newActiveThreads
+
 	for(let term in update.history){
 		update.history[term] = fillGaps(term,update.history[term])
 
-		console.log("supDB has",update.board,supDB.has(update.board).value())
+		//console.log("supDB has",update.board,supDB.has(update.board).value())
 		if(term == "day" && supDB.has(update.board).value()){
-			console.log(update.board,"length",supDB.get(update.board).value().length)
+			console.log(update.board,"sup length",supDB.get(update.board).value().length)
 			update.history[term] = [...supDB.get(update.board).value(),...update.history[term]]
 		}
 
 		adjustHistoryOfNoDubBoards(update.board,update.history[term])
 
 		history[term][update.board] = update.history[term]
-		//calcCombinedHistory(term,update.history[term])
+		if(term == "day" || term == "hour"){
+			calcCombinedHistory(term,update.history[term])
+		}
 	}
 	apiIO.emit("boardUpdate",update.board,update.newBoardStats)
 })
@@ -212,6 +229,33 @@ gathererIO.on("gathererError", err => {
 gathererIO.on('error', error => {
   apiIO.emit("serverError","API: " + error.message || error.data || error)
 });
+
+//////////////////////////////
+// Post Analysis connection //
+//////////////////////////////
+const paAddr = "http://51.15.57.204:8080"
+
+const paIO = require('socket.io-client')(paAddr,{
+	transports: ['websocket']
+})
+
+paIO.on("connect", () => {
+	pino.info("✓✓✓ paIO connected to %s",paAddr)
+})
+
+paIO.on("disconnect", reason => {
+	pino.error("paIO disconnected from %s - %s",paAddr,reason)
+})
+
+paIO.on("initialData", initialData => {
+	pino.info("✓✓✓ paIO received initialData")
+	postAnalysisResult = initialData
+})
+
+paIO.on("update", (board,stats) => {
+	pino.debug("paIO received update")
+	postAnalysisResult[board] = stats
+})
 
 ////////////////////
 // API connection //
@@ -284,115 +328,6 @@ app.get('/history/:term/:board', (req, res) => {
 	}
 })
 
-app.get('/combinedHistory/:term', (req, res) => {
-	res.send(combinedHistory[req.params.term])
+app.get('/allPostAnalysis', (req, res) => {
+	res.send(postAnalysisResult)
 })
-
-//////////////
-// Info Box //
-//////////////
-
-const crypto = require('crypto');
-const validPW = "ddfbc49d225314681f1f2e872110960759df78d0646309918352563ca26d40fc"
-let infoString = ""
-
-apiIO.on("updateInfoText",(text,pw) => {
-	const digest = crypto.createHash('sha256').update(pw).digest('hex');
-	infoString = text
-})
-
-///////////////////////
-// snapshot analysis //
-///////////////////////
-
-//const snapperAddr = "http://10.9.96.5:8080"
-const snapperAddr = "http://163.172.158.243:8080"
-
-const snapperIO = require('socket.io-client')(snapperAddr,{
-	transports: ['websocket']
-})
-
-let textAnalysis = {}
-let metaAnalysis = {}
-
-snapperIO.on("connect", () => {
-	pino.info("✓✓✓ snapperIO connected to %s",snapperAddr)
-})
-
-snapperIO.on("disconnect", reason => {
-	pino.error("snapperIO disconnected from %s - %s",snapperAddr,reason)
-})
-
-snapperIO.on("initialData", initialData => {
-	pino.info("✓✓✓ snapperIO received initialData")
-	for(let board of Object.keys(initialData).sort()){
-		//textAnalysis[board] = initialData[board].textAnalysis
-		metaAnalysis[board] = initialData[board].metaAnalysis
-	}
-})
-
-snapperIO.on("update", update => {
-	pino.debug("snapperIO received update")
-	//textAnalysis[update.board] = update.textAnalysis
-	metaAnalysis[update.board] = update.metaAnalysis
-})
-
-const axios = require('axios')
-app.get('/textAnalysis', async (req, res) => {
-	const word = req.query.word
-	if(!word || word.length < 3 || word.length > 20){
-		res.status(400).send("word is too short or too long (3-20 characters)")
-		return
-	}
-	try{
-		const result = await axios.get(`${snapperAddr}/analyzeText?word=${word}`)
-		res.send(result.data)
-	}catch(err){
-		res.status(500).send("sorry the server fucked up")
-		console.error(err.message)
-	}
-	return
-})
-/*
-app.get('/textAnalysisLastDay/:word', async (req, res) => {
-	try{
-		res.send(textAnalysis[req.params.word])
-	}catch(err){
-		conole.error(err.message)
-	}
-	return
-})
-*/
-app.get('/metaAnalysis', (req, res) => {
-	res.send(metaAnalysis)
-})
-
-app.get('/metaAnalysis/:board', (req, res) => {
-	res.send(metaAnalysis[req.params.board])
-})
-
-let csvStrings = {}
-
-snapperIO.on("csvStrings", strings => {
-	pino.debug("snapperIO received csvStrings")
-	csvStrings = strings
-})
-
-app.get('/csv/:name', function (req, res) {
-	res.set('Content-Type', 'text/csv')
-	res.set('Content-Disposition', `attachment; filename=${req.params.name}.csv`)
-	if(!csvStrings[req.params.name]){
-		res.sendStatus(404)
-	}else{
-		res.send(csvStrings[req.params.name])
-	}
-})
-/*
-app.get('/wordAnalysis/:word', async (req, res) => {
-	try{
-		res.send(await axios.get(snapperAddr + `/wordAnalysis/${req.params.name}`).data)
-	}catch(err){
-		pino.error(err.message)
-	}
-})
-*/
